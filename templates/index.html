@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Benefix | Inicio{% endblock %}
+
+{% block content %}
+<main class="landing">
+    <section class="landing-panel">
+        <img class="landing-logo" src="{{ url_for('static', filename='img/benefix-logo.svg') }}" alt="Benefix">
+        <p class="eyebrow"><i class="fa-solid fa-star"></i> Membresia digital inteligente</p>
+        <div class="d-flex gap-3 justify-content-center mt-4">
+            <a class="btn btn-success btn-lg" href="{{ url_for('registro') }}">Crear cuenta</a>
+            <a class="btn btn-outline-dark btn-lg" href="{{ url_for('login') }}">Iniciar sesion</a>
+        </div>
+    </section>
+</main>
+{% endblock %}

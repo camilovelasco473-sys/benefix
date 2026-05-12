@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Notificaciones | Benefix{% endblock %}
+
+{% block content %}
+<main class="app-shell narrow">
+    <section class="panel-card">
+        <div class="section-title">
+            <div>
+                <p class="eyebrow">Centro de alertas</p>
+                <h1>Notificaciones</h1>
+            </div>
+        </div>
+        {% for item in notificaciones %}
+            <div class="notification-item {% if not item.leida %}unread{% endif %}">
+                <i class="fa-solid fa-bell"></i>
+                <div>
+                    <strong>{{ item.titulo }}</strong>
+                    <p>{{ item.mensaje }}</p>
+                    <span>{{ item.fecha }}</span>
+                </div>
+            </div>
+        {% else %}
+            <p class="text-muted m-0">No tienes notificaciones todavia.</p>
+        {% endfor %}
+    </section>
+</main>
+{% endblock %}

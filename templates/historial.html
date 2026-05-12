@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Historial | Benefix{% endblock %}
+
+{% block content %}
+<main class="app-shell">
+    <section class="hero-row">
+        <div>
+            <p class="eyebrow">Actividad</p>
+            <h1>Historial dinamico</h1>
+            <p class="text-muted">Inicio de sesion, cambios de perfil y uso de descuentos se registran en SQLite.</p>
+        </div>
+    </section>
+
+    <section class="panel-card">
+        {% for item in historial %}
+            <div class="timeline-item big">
+                <i class="fa-solid fa-circle-check"></i>
+                <div>
+                    <strong>{{ item.accion }}</strong>
+                    <p>{{ item.fecha }}</p>
+                </div>
+            </div>
+        {% else %}
+            <p class="text-muted m-0">Todavia no tienes movimientos.</p>
+        {% endfor %}
+    </section>
+</main>
+{% endblock %}

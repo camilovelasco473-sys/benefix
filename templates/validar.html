@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Validar tarjeta | Benefix{% endblock %}
+
+{% block content %}
+<main class="app-shell">
+    <section class="hero-row">
+        <div>
+            <p class="eyebrow">Operacion en punto de venta</p>
+            <h1>Validar tarjeta Benefix</h1>
+            <p class="text-muted">Busca por codigo de tarjeta, ID, correo o texto del QR.</p>
+        </div>
+    </section>
+
+    <section class="two-columns admin-columns">
+        <div class="panel-card">
+            <h2>Datos de validacion</h2>
+            {% if mensaje %}<div class="alert alert-success">{{ mensaje }}</div>{% endif %}
+            {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+            <form method="post" class="vstack gap-3">
+                <label class="form-label">Codigo QR o membresia
+                    <input class="form-control" name="codigo" value="{{ codigo }}" placeholder="BF-0001" required>
+                </label>
+                <label class="form-label">Comercio aliado
+                    <select class="form-select" name="comercio_id">
+                        <option value="">Sin comercio especifico</option>
+                        {% for item in comercios %}
+                            <option value="{{ item.id }}">{{ item.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="form-label">Descuento aplicado
+                    <select class="form-select" name="descuento_id">
+                        <option value="">Solo validar acceso</option>
+                        {% for item in descuentos %}
+                            <option value="{{ item.id }}">{{ item.nombre }} - {{ item.porcentaje }}%</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <button class="btn btn-success btn-lg" type="submit">Registrar validacion</button>
+            </form>
+        </div>
+
+        <div class="panel-card">
+            <h2>Resultado</h2>
+            {% if usuario %}
+                <div class="validation-result approved">
+                    <i class="fa-solid fa-circle-check"></i>
+                    <div>
+                        <strong>Membresia activa</strong>
+                        <p>{{ usuario.nombre }}</p>
+                        <p>{{ usuario.correo }}</p>
+                        <span>{{ "BF-%04d"|format(usuario.id) }} - Nivel {{ usuario.nivel }}</span>
+                    </div>
+                </div>
+            {% else %}
+                <div class="validation-result">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <div>
+                        <strong>Sin busqueda activa</strong>
+                        <p>Ingresa un codigo y registra la validacion.</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="panel-card">
+        <h2>Ultimas validaciones</h2>
+        {% for item in validaciones %}
+            <div class="admin-row">
+                <div>
+                    <strong>{{ item.usuario }}</strong>
+                    <p>{{ item.codigo }} - {{ item.resultado }} - {{ item.fecha }}</p>
+                    <p>{{ item.comercio or 'Sin comercio' }}{% if item.descuento %} - {{ item.descuento }}{% endif %}</p>
+                </div>
+            </div>
+        {% else %}
+            <p class="text-muted m-0">Aun no hay validaciones registradas.</p>
+        {% endfor %}
+    </section>
+</main>
+{% endblock %}

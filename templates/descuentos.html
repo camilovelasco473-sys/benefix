@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Descuentos | Benefix{% endblock %}
+
+{% block content %}
+<main class="app-shell">
+    <section class="hero-row">
+        <div>
+            <p class="eyebrow">Beneficios</p>
+            <h1>Descuentos disponibles</h1>
+            <p class="text-muted">Cada uso queda guardado automaticamente en tu historial.</p>
+        </div>
+    </section>
+
+    <section class="discount-grid">
+        {% for item in descuentos %}
+            <article class="discount-card">
+                <div class="discount-icon"><i class="fa-solid fa-ticket"></i></div>
+                <span>{{ item.categoria }}</span>
+                <h2>{{ item.nombre }}</h2>
+                <strong>{{ item.porcentaje }}%</strong>
+                <p>{{ item.descripcion }}</p>
+                <p class="saving-text">Ahorro estimado: ${{ "{:,}".format(item.ahorro_estimado) }}</p>
+                <form method="post" action="{{ url_for('favorito', descuento_id=item.id) }}" class="mb-2">
+                    <button class="btn btn-outline-success w-100" type="submit">
+                        {% if item.id in favoritos_ids %}
+                            <i class="fa-solid fa-heart"></i> En favoritos
+                        {% else %}
+                            <i class="fa-regular fa-heart"></i> Guardar favorito
+                        {% endif %}
+                    </button>
+                </form>
+                <form method="post" action="{{ url_for('usar_descuento', descuento_id=item.id) }}">
+                    <button class="btn btn-success w-100" type="submit">Usar descuento</button>
+                </form>
+            </article>
+        {% endfor %}
+    </section>
+</main>
+{% endblock %}

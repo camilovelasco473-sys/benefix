@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Panel | Benefix{% endblock %}
+
+{% block content %}
+<main class="app-shell">
+    <section class="hero-row">
+        <div>
+            <p class="eyebrow">Panel principal</p>
+            <h1>Hola, {{ usuario.nombre }}</h1>
+            <p class="text-muted">Tu membresia esta activa y lista para usar en comercios aliados.</p>
+        </div>
+        <div class="quick-actions">
+            <a class="btn btn-success" href="{{ url_for('descuentos') }}"><i class="fa-solid fa-tag"></i> Usar descuento</a>
+            <a class="btn btn-outline-success" href="{{ url_for('mi_benefix') }}"><i class="fa-solid fa-id-card"></i> Mi Benefix</a>
+            <a class="btn btn-outline-dark" href="{{ url_for('perfil') }}"><i class="fa-solid fa-pen"></i> Editar perfil</a>
+        </div>
+    </section>
+
+    <section class="dashboard-grid">
+        <article class="digital-card">
+            <div class="card-top">
+                <span>Benefix Digital</span>
+                <i class="fa-solid fa-heart-pulse"></i>
+            </div>
+            <h2>{{ usuario.nombre }}</h2>
+            <p>{{ usuario.correo }}</p>
+            <div class="member-row">
+            <div>
+                <small>ID</small>
+                    <strong>{{ codigo }}</strong>
+                </div>
+                <div>
+                    <small>Nivel</small>
+                    <strong>{{ usuario.nivel }}</strong>
+                </div>
+                <div>
+                    <small>Miembro desde</small>
+                    <strong>{{ usuario.creado_en[:10] }}</strong>
+                </div>
+            </div>
+        </article>
+
+        <article class="qr-card">
+            <img src="{{ qr }}" alt="QR de usuario Benefix">
+            <div>
+                <h3>QR de acceso</h3>
+                <p>Identifica al usuario para validar beneficios o accesos.</p>
+                <span class="qr-code">{{ codigo }}</span>
+            </div>
+        </article>
+    </section>
+
+    <section class="stats-grid">
+        <article class="stat-card"><i class="fa-solid fa-tags"></i><span>{{ stats.descuentos }}</span><p>Descuentos activos</p></article>
+        <article class="stat-card"><i class="fa-solid fa-bolt"></i><span>{{ stats.usos }}</span><p>Usos registrados</p></article>
+        <article class="stat-card"><i class="fa-solid fa-piggy-bank"></i><span>${{ "{:,}".format(stats.ahorro) }}</span><p>Ahorro estimado</p></article>
+        <article class="stat-card"><i class="fa-solid fa-clock"></i><span>{{ stats.actividad }}</span><p>Eventos en tu historial</p></article>
+    </section>
+
+    <section class="two-columns">
+        <div class="panel-card">
+            <div class="section-title">
+                <h2>Descuentos destacados</h2>
+                <a href="{{ url_for('descuentos') }}">Ver todos</a>
+            </div>
+            {% for item in descuentos %}
+                <div class="list-item">
+                    <div>
+                        <strong>{{ item.nombre }}</strong>
+                        <p>{{ item.descripcion }}</p>
+                    </div>
+                    <span class="discount-badge">{{ item.porcentaje }}%</span>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="panel-card">
+            <div class="section-title">
+                <h2>Historial reciente</h2>
+                <a href="{{ url_for('historial') }}">Abrir</a>
+            </div>
+            {% for item in historial %}
+                <div class="timeline-item">
+                    <i class="fa-solid fa-circle-check"></i>
+                    <div>
+                        <strong>{{ item.accion }}</strong>
+                        <p>{{ item.fecha }}</p>
+                    </div>
+                </div>
+            {% else %}
+                <p class="text-muted">Todavia no hay actividad.</p>
+            {% endfor %}
+        </div>
+    </section>
+</main>
+{% endblock %}

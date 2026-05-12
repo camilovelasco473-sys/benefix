@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Perfil | Benefix{% endblock %}
+
+{% block content %}
+<main class="app-shell narrow">
+    <section class="panel-card">
+        <div class="section-title">
+            <div>
+                <p class="eyebrow">Cuenta</p>
+                <h1>Perfil de usuario</h1>
+            </div>
+        </div>
+        {% if mensaje %}<div class="alert alert-success">{{ mensaje }}</div>{% endif %}
+        {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+        <form method="post" class="vstack gap-3">
+            <label class="form-label">Nombre
+                <input class="form-control" type="text" name="nombre" value="{{ usuario.nombre }}" required>
+            </label>
+            <label class="form-label">Correo
+                <input class="form-control" type="email" name="correo" value="{{ usuario.correo }}" required>
+            </label>
+            <label class="form-label">Foto URL
+                <input class="form-control" type="url" name="foto" value="{{ usuario.foto or '' }}" placeholder="https://...">
+            </label>
+            <label class="form-label">Nueva contrasena
+                <input class="form-control" type="password" name="password" placeholder="Dejar vacio para no cambiar">
+            </label>
+            <button class="btn btn-success btn-lg" type="submit">Guardar cambios</button>
+        </form>
+    </section>
+</main>
+{% endblock %}

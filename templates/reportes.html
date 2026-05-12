@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Reportes | Benefix{% endblock %}
+
+{% block content %}
+<main class="app-shell">
+    <section class="hero-row">
+        <div>
+            <p class="eyebrow">Inteligencia administrativa</p>
+            <h1>Reportes Benefix</h1>
+            <p class="text-muted">Analiza usuarios, comercios, validaciones y descuentos usados.</p>
+        </div>
+        <a class="btn btn-success btn-lg" href="{{ url_for('exportar_reporte') }}">
+            <i class="fa-solid fa-file-csv"></i> Exportar CSV
+        </a>
+    </section>
+
+    <section class="stats-grid">
+        <article class="stat-card"><i class="fa-solid fa-users"></i><span>{{ stats.usuarios }}</span><p>Usuarios registrados</p></article>
+        <article class="stat-card"><i class="fa-solid fa-tags"></i><span>{{ stats.descuentos }}</span><p>Descuentos activos</p></article>
+        <article class="stat-card"><i class="fa-solid fa-store"></i><span>{{ stats.comercios }}</span><p>Comercios aliados</p></article>
+        <article class="stat-card"><i class="fa-solid fa-qrcode"></i><span>{{ stats.validaciones }}</span><p>Validaciones realizadas</p></article>
+    </section>
+
+    <section class="report-grid">
+        <article class="panel-card chart-card">
+            <h2>Descuentos mas usados</h2>
+            <canvas id="descuentosChart"></canvas>
+        </article>
+        <article class="panel-card chart-card">
+            <h2>Validaciones por comercio</h2>
+            <canvas id="comerciosChart"></canvas>
+        </article>
+        <article class="panel-card chart-card wide">
+            <h2>Actividad por dia</h2>
+            <canvas id="actividadChart"></canvas>
+        </article>
+    </section>
+
+    <section class="panel-card">
+        <div class="section-title">
+            <h2>Validaciones recientes</h2>
+            <a href="{{ url_for('validar') }}">Registrar nueva</a>
+        </div>
+        {% for item in validaciones %}
+            <div class="admin-row">
+                <div>
+                    <strong>{{ item.usuario }}</strong>
+                    <p>{{ item.codigo }} - {{ item.resultado }} - {{ item.fecha }}</p>
+                    <p>{{ item.comercio or 'Sin comercio' }}{% if item.descuento %} - {{ item.descuento }}{% endif %}</p>
+                </div>
+            </div>
+        {% else %}
+            <p class="text-muted m-0">Aun no hay validaciones para reportar.</p>
+        {% endfor %}
+    </section>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                labels: {
+                    color: "#0f2742",
+                    font: { weight: "bold" }
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: { precision: 0 }
+            }
+        }
+    };
+
+    new Chart(document.getElementById("descuentosChart"), {
+        type: "bar",
+        data: {
+            labels: {{ descuentos_top | map(attribute='nombre') | list | tojson }},
+            datasets: [{
+                label: "Usos",
+                data: {{ descuentos_top | map(attribute='usos') | list | tojson }},
+                backgroundColor: "#38bdf8",
+                borderRadius: 8
+            }]
+        },
+        options: chartOptions
+    });
+
+    new Chart(document.getElementById("comerciosChart"), {
+        type: "doughnut",
+        data: {
+            labels: {{ validaciones_comercio | map(attribute='nombre') | list | tojson }},
+            datasets: [{
+                label: "Validaciones",
+                data: {{ validaciones_comercio | map(attribute='total') | list | tojson }},
+                backgroundColor: ["#38bdf8", "#0284c7", "#0f2742", "#93c5fd", "#f59e0b", "#64748b"]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+
+    new Chart(document.getElementById("actividadChart"), {
+        type: "line",
+        data: {
+            labels: {{ actividad_dia | map(attribute='dia') | list | tojson }},
+            datasets: [{
+                label: "Eventos",
+                data: {{ actividad_dia | map(attribute='total') | list | tojson }},
+                borderColor: "#0284c7",
+                backgroundColor: "rgba(56, 189, 248, 0.18)",
+                fill: true,
+                tension: 0.35
+            }]
+        },
+        options: chartOptions
+    });
+</script>
+{% endblock %}

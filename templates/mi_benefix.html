@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Mi Benefix{% endblock %}
+
+{% block content %}
+<main class="app-shell">
+    <section class="hero-row">
+        <div>
+            <p class="eyebrow">Zona personal</p>
+            <h1>Mi Benefix</h1>
+            <p class="text-muted">Consulta tu membresia, ahorros, favoritos y comprobantes.</p>
+        </div>
+        <a class="btn btn-success btn-lg" href="{{ url_for('descuentos') }}"><i class="fa-solid fa-tag"></i> Usar beneficios</a>
+    </section>
+
+    <section class="dashboard-grid">
+        <article class="digital-card">
+            <div class="card-top">
+                <span>Benefix Digital</span>
+                <i class="fa-solid fa-heart-pulse"></i>
+            </div>
+            <h2>{{ usuario.nombre }}</h2>
+            <p>{{ usuario.correo }}</p>
+            <div class="member-row">
+                <div><small>ID</small><strong>{{ codigo }}</strong></div>
+                <div><small>Nivel</small><strong>{{ usuario.nivel }}</strong></div>
+                <div><small>Estado</small><strong>Activa</strong></div>
+            </div>
+        </article>
+        <article class="qr-card">
+            <img src="{{ qr }}" alt="QR de usuario Benefix">
+            <div>
+                <h3>QR de membresia</h3>
+                <p>Presentalo para validar tus beneficios.</p>
+                <span class="qr-code">{{ codigo }}</span>
+            </div>
+        </article>
+    </section>
+
+    <section class="stats-grid">
+        <article class="stat-card"><i class="fa-solid fa-piggy-bank"></i><span>${{ "{:,}".format(stats.ahorro) }}</span><p>Ahorro estimado</p></article>
+        <article class="stat-card"><i class="fa-solid fa-ticket"></i><span>{{ stats.usados }}</span><p>Beneficios usados</p></article>
+        <article class="stat-card"><i class="fa-solid fa-heart"></i><span>{{ stats.favoritos }}</span><p>Favoritos</p></article>
+        <article class="stat-card"><i class="fa-solid fa-clock"></i><span>{{ stats.actividad }}</span><p>Movimientos</p></article>
+    </section>
+
+    <section class="two-columns">
+        <div class="panel-card">
+            <div class="section-title">
+                <h2>Comprobantes recientes</h2>
+                <a href="{{ url_for('descuentos') }}">Nuevo uso</a>
+            </div>
+            {% for item in comprobantes %}
+                <div class="admin-row">
+                    <div>
+                        <strong>{{ item.descuento }} - {{ item.porcentaje }}%</strong>
+                        <p>{{ item.codigo }} - {{ item.fecha }}</p>
+                        <p>Ahorro estimado: ${{ "{:,}".format(item.ahorro) }}</p>
+                    </div>
+                    <a class="btn btn-sm btn-outline-success" href="{{ url_for('comprobante', comprobante_id=item.id) }}">Ver</a>
+                </div>
+            {% else %}
+                <p class="text-muted m-0">Aun no tienes comprobantes.</p>
+            {% endfor %}
+        </div>
+
+        <div class="panel-card">
+            <div class="section-title">
+                <h2>Favoritos</h2>
+                <a href="{{ url_for('descuentos') }}">Agregar</a>
+            </div>
+            {% for item in favoritos %}
+                <div class="list-item">
+                    <div>
+                        <strong>{{ item.nombre }}</strong>
+                        <p>{{ item.descripcion }}</p>
+                    </div>
+                    <span class="discount-badge">{{ item.porcentaje }}%</span>
+                </div>
+            {% else %}
+                <p class="text-muted m-0">Guarda descuentos para encontrarlos rapido.</p>
+            {% endfor %}
+        </div>
+    </section>
+</main>
+{% endblock %}

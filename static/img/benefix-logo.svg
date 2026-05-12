@@ -1,0 +1,15 @@
+<svg width="220" height="64" viewBox="0 0 220 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="64" height="64" rx="14" fill="#E0F2FE"/>
+  <rect x="12" y="17" width="40" height="30" rx="7" fill="url(#cardGradient)"/>
+  <path d="M23 35C23 29.5 27.5 25 33 25H42C43.7 25 45 26.3 45 28C45 29.7 43.7 31 42 31H34.5C33.7 31 33 31.7 33 32.5C33 33.3 33.7 34 34.5 34H39C40.7 34 42 35.3 42 37C42 38.7 40.7 40 39 40H33C27.5 40 23 40.5 23 35Z" fill="white" fill-opacity="0.24"/>
+  <path d="M22 33H28.5L31.2 27L35.4 39L38.2 33H44" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M47 20L50 23L47 26L44 23L47 20Z" fill="white"/>
+  <text x="78" y="28" fill="#0F2742" font-family="Arial, sans-serif" font-size="24" font-weight="800">Benefix</text>
+  <text x="80" y="46" fill="#0284C7" font-family="Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="0">Beneficios digitales</text>
+  <defs>
+    <linearGradient id="cardGradient" x1="12" y1="17" x2="54" y2="47" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#0284C7"/>
+    </linearGradient>
+  </defs>
+</svg>

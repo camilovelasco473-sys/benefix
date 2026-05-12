@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: benefix
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FLASK_DEBUG
+        value: "0"
+      - key: DATABASE_PATH
+        value: benefix.db

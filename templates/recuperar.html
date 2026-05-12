@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Recuperar | Benefix{% endblock %}
+
+{% block content %}
+<main class="auth-shell">
+    <section class="auth-card">
+        <div class="text-center mb-4">
+            <img class="auth-logo" src="{{ url_for('static', filename='img/benefix-logo.svg') }}" alt="Benefix">
+            <h1>Recuperar acceso</h1>
+            <p>Simulacion profesional de recuperacion de contrasena.</p>
+        </div>
+        {% if mensaje %}
+            <div class="alert alert-success">{{ mensaje }}</div>
+        {% endif %}
+        <form method="post" class="vstack gap-3">
+            <label class="form-label">Correo
+                <input class="form-control" type="email" name="correo" required>
+            </label>
+            <button class="btn btn-success btn-lg" type="submit">Enviar instrucciones</button>
+        </form>
+        <div class="auth-links">
+            <a href="{{ url_for('login') }}">Volver al login</a>
+        </div>
+    </section>
+</main>
+{% endblock %}

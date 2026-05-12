@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Comprobante | Benefix{% endblock %}
+
+{% block content %}
+<main class="app-shell narrow">
+    <section class="receipt-card">
+        <div class="receipt-status">
+            <i class="fa-solid fa-circle-check"></i>
+            <p>Descuento usado correctamente</p>
+        </div>
+        <h1>Comprobante Benefix</h1>
+        <div class="receipt-code">{{ comprobante.codigo }}</div>
+
+        <div class="receipt-lines">
+            <div><span>Usuario</span><strong>{{ comprobante.usuario }}</strong></div>
+            <div><span>Correo</span><strong>{{ comprobante.correo }}</strong></div>
+            <div><span>Beneficio</span><strong>{{ comprobante.descuento }}</strong></div>
+            <div><span>Categoria</span><strong>{{ comprobante.categoria }}</strong></div>
+            <div><span>Descuento</span><strong>{{ comprobante.porcentaje }}%</strong></div>
+            <div><span>Ahorro estimado</span><strong>${{ "{:,}".format(comprobante.ahorro) }}</strong></div>
+            <div><span>Fecha</span><strong>{{ comprobante.fecha }}</strong></div>
+        </div>
+
+        <div class="d-flex gap-2 justify-content-center mt-4">
+            <a class="btn btn-success" href="{{ url_for('descuentos') }}">Usar otro descuento</a>
+            <a class="btn btn-outline-dark" href="{{ url_for('mi_benefix') }}">Ver Mi Benefix</a>
+        </div>
+    </section>
+</main>
+{% endblock %}
