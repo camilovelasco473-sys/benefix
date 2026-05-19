@@ -2,6 +2,7 @@ import base64
 import csv
 import io
 import os
+import secrets
 import sqlite3
 from datetime import datetime
 from functools import wraps
@@ -13,7 +14,14 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "benefix-dev-secret")
-DATABASE = os.environ.get("DATABASE_PATH", "benefix.db")
+DEFAULT_DATABASE = (
+    os.path.join(os.environ["RENDER_DISK_PATH"], "benefix.db")
+    if os.environ.get("RENDER_DISK_PATH")
+    else "benefix.db"
+)
+DATABASE = os.environ.get("DATABASE_PATH", DEFAULT_DATABASE)
+NIVELES = {"Vital": 1, "Gold": 2, "Black": 3}
+ESTADOS_MEMBRESIA = ("Activa", "Suspendida", "Vencida")
 
 
 def get_db():
@@ -41,7 +49,10 @@ def init_db():
             contrasena TEXT NOT NULL,
             foto TEXT,
             nivel TEXT NOT NULL DEFAULT 'Vital',
+            estado TEXT NOT NULL DEFAULT 'Activa',
             rol TEXT NOT NULL DEFAULT 'usuario',
+            reset_token TEXT,
+            reset_expira TEXT,
             creado_en TEXT NOT NULL
         );
 
@@ -52,7 +63,8 @@ def init_db():
             categoria TEXT NOT NULL,
             porcentaje INTEGER NOT NULL,
             usos INTEGER NOT NULL DEFAULT 0,
-            ahorro_estimado INTEGER NOT NULL DEFAULT 10000
+            ahorro_estimado INTEGER NOT NULL DEFAULT 10000,
+            nivel_minimo TEXT NOT NULL DEFAULT 'Vital'
         );
 
         CREATE TABLE IF NOT EXISTS historial (
@@ -114,9 +126,37 @@ def init_db():
             fecha TEXT NOT NULL,
             FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
         );
+
+        CREATE TABLE IF NOT EXISTS cuentas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL UNIQUE,
+            saldo INTEGER NOT NULL DEFAULT 150000,
+            moneda TEXT NOT NULL DEFAULT 'COP',
+            creada_en TEXT NOT NULL,
+            FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS movimientos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cuenta_id INTEGER NOT NULL,
+            usuario_id INTEGER NOT NULL,
+            tipo TEXT NOT NULL,
+            monto INTEGER NOT NULL,
+            descripcion TEXT NOT NULL,
+            destinatario TEXT,
+            codigo TEXT NOT NULL UNIQUE,
+            saldo_final INTEGER NOT NULL,
+            fecha TEXT NOT NULL,
+            FOREIGN KEY (cuenta_id) REFERENCES cuentas(id),
+            FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+        );
         """
     )
+    asegurar_columna("usuarios", "estado", "TEXT NOT NULL DEFAULT 'Activa'")
+    asegurar_columna("usuarios", "reset_token", "TEXT")
+    asegurar_columna("usuarios", "reset_expira", "TEXT")
     asegurar_columna("descuentos", "ahorro_estimado", "INTEGER NOT NULL DEFAULT 10000")
+    asegurar_columna("descuentos", "nivel_minimo", "TEXT NOT NULL DEFAULT 'Vital'")
     db.commit()
     seed_data()
 
@@ -132,7 +172,7 @@ def seed_data():
     db = get_db()
     total_usuarios = db.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0]
     if total_usuarios == 0:
-        db.execute(
+        cursor = db.execute(
             """
             INSERT INTO usuarios (nombre, correo, contrasena, nivel, rol, creado_en)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -146,19 +186,21 @@ def seed_data():
                 ahora(),
             ),
         )
+        db.commit()
+        asegurar_cuenta(cursor.lastrowid)
 
     total_descuentos = db.execute("SELECT COUNT(*) FROM descuentos").fetchone()[0]
     if total_descuentos == 0:
         db.executemany(
             """
-            INSERT INTO descuentos (nombre, descripcion, categoria, porcentaje, usos, ahorro_estimado)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO descuentos (nombre, descripcion, categoria, porcentaje, usos, ahorro_estimado, nivel_minimo)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             [
-                ("Farmacia Salud", "Medicamentos y vitaminas seleccionadas.", "Salud", 20, 7, 18500),
-                ("Supermercado Ahorro", "Compras mayores a $80.000.", "Mercado", 15, 5, 24000),
-                ("Gimnasio Vital", "Primer mes con tarifa especial.", "Bienestar", 30, 3, 36000),
-                ("Optica Clara", "Monturas y lentes formulados.", "Vision", 18, 4, 22000),
+                ("Farmacia Salud", "Medicamentos y vitaminas seleccionadas.", "Salud", 20, 7, 18500, "Vital"),
+                ("Supermercado Ahorro", "Compras mayores a $80.000.", "Mercado", 15, 5, 24000, "Vital"),
+                ("Gimnasio Vital", "Primer mes con tarifa especial.", "Bienestar", 30, 3, 36000, "Gold"),
+                ("Optica Clara", "Monturas y lentes formulados.", "Vision", 18, 4, 22000, "Black"),
             ],
         )
 
@@ -201,6 +243,51 @@ def crear_notificacion(usuario_id, titulo, mensaje):
         (usuario_id, titulo, mensaje, ahora()),
     )
     db.commit()
+
+
+def asegurar_cuenta(usuario_id):
+    db = get_db()
+    cuenta = db.execute("SELECT * FROM cuentas WHERE usuario_id = ?", (usuario_id,)).fetchone()
+    if cuenta:
+        return cuenta
+
+    cursor = db.execute(
+        """
+        INSERT INTO cuentas (usuario_id, saldo, moneda, creada_en)
+        VALUES (?, ?, ?, ?)
+        """,
+        (usuario_id, 150000, "COP", ahora()),
+    )
+    cuenta_id = cursor.lastrowid
+    codigo = f"MOV-{datetime.now().strftime('%Y%m%d%H%M%S')}-{usuario_id}-INI"
+    db.execute(
+        """
+        INSERT INTO movimientos
+        (cuenta_id, usuario_id, tipo, monto, descripcion, destinatario, codigo, saldo_final, fecha)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            cuenta_id,
+            usuario_id,
+            "Ingreso",
+            150000,
+            "Saldo inicial de bienvenida",
+            "Benefix",
+            codigo,
+            150000,
+            ahora(),
+        ),
+    )
+    db.commit()
+    return db.execute("SELECT * FROM cuentas WHERE id = ?", (cuenta_id,)).fetchone()
+
+
+def nivel_permitido(usuario_nivel, nivel_minimo):
+    return NIVELES.get(usuario_nivel, 0) >= NIVELES.get(nivel_minimo, 1)
+
+
+def membresia_activa(usuario):
+    return usuario and usuario["estado"] == "Activa"
 
 
 def usuario_actual():
@@ -307,6 +394,7 @@ def registro():
                 )
                 db.commit()
                 session["usuario_id"] = cursor.lastrowid
+                asegurar_cuenta(cursor.lastrowid)
                 registrar_historial(cursor.lastrowid, "Creo su cuenta Benefix")
                 return redirect(url_for("dashboard"))
 
@@ -322,8 +410,12 @@ def login():
         usuario = get_db().execute("SELECT * FROM usuarios WHERE correo = ?", (correo,)).fetchone()
 
         if usuario and check_password_hash(usuario["contrasena"], contrasena):
+            if usuario["estado"] != "Activa" and usuario["rol"] != "admin":
+                error = f"Tu membresia esta {usuario['estado'].lower()}. Contacta al administrador."
+                return render_template("login.html", error=error)
             session.clear()
             session["usuario_id"] = usuario["id"]
+            asegurar_cuenta(usuario["id"])
             registrar_historial(usuario["id"], "Inicio sesion")
             return redirect(url_for("dashboard"))
 
@@ -337,7 +429,11 @@ def login():
 def dashboard():
     db = get_db()
     usuario = usuario_actual()
-    descuentos = db.execute("SELECT * FROM descuentos ORDER BY porcentaje DESC LIMIT 3").fetchall()
+    descuentos = [
+        item
+        for item in db.execute("SELECT * FROM descuentos ORDER BY porcentaje DESC").fetchall()
+        if nivel_permitido(usuario["nivel"], item["nivel_minimo"])
+    ][:3]
     historial = db.execute(
         "SELECT * FROM historial WHERE usuario_id = ? ORDER BY fecha DESC LIMIT 5",
         (usuario["id"],),
@@ -352,6 +448,7 @@ def dashboard():
             "SELECT COALESCE(SUM(ahorro), 0) FROM comprobantes WHERE usuario_id = ?",
             (usuario["id"],),
         ).fetchone()[0],
+        "saldo": asegurar_cuenta(usuario["id"])["saldo"],
     }
     codigo = codigo_usuario(usuario["id"])
     qr = generar_qr(f"BENEFIX|usuario:{usuario['id']}|codigo:{codigo}|correo:{usuario['correo']}")
@@ -370,20 +467,35 @@ def dashboard():
 @login_requerido
 def descuentos():
     db = get_db()
+    usuario = usuario_actual()
     descuentos_lista = db.execute("SELECT * FROM descuentos ORDER BY porcentaje DESC").fetchall()
     favoritos = db.execute(
         "SELECT descuento_id FROM favoritos WHERE usuario_id = ?", (session["usuario_id"],)
     ).fetchall()
     favoritos_ids = {fila["descuento_id"] for fila in favoritos}
-    return render_template("descuentos.html", descuentos=descuentos_lista, favoritos_ids=favoritos_ids)
+    return render_template(
+        "descuentos.html",
+        descuentos=descuentos_lista,
+        favoritos_ids=favoritos_ids,
+        usuario=usuario,
+        nivel_permitido=nivel_permitido,
+    )
 
 
 @app.route("/usar-descuento/<int:descuento_id>", methods=["POST"])
 @login_requerido
 def usar_descuento(descuento_id):
     db = get_db()
+    usuario = usuario_actual()
     descuento = db.execute("SELECT * FROM descuentos WHERE id = ?", (descuento_id,)).fetchone()
     if descuento:
+        if not membresia_activa(usuario) or not nivel_permitido(usuario["nivel"], descuento["nivel_minimo"]):
+            crear_notificacion(
+                usuario["id"],
+                "Beneficio no disponible",
+                "Tu membresia no cumple las condiciones para usar este descuento.",
+            )
+            return redirect(url_for("descuentos"))
         db.execute("UPDATE descuentos SET usos = usos + 1 WHERE id = ?", (descuento_id,))
         codigo = f"OP-{datetime.now().strftime('%Y%m%d%H%M%S')}-{session['usuario_id']}-{descuento_id}"
         cursor = db.execute(
@@ -519,6 +631,95 @@ def notificaciones():
     return render_template("notificaciones.html", notificaciones=items)
 
 
+@app.route("/billetera", methods=["GET", "POST"])
+@login_requerido
+def billetera():
+    db = get_db()
+    usuario = usuario_actual()
+    cuenta = asegurar_cuenta(usuario["id"])
+    error = None
+
+    if request.method == "POST":
+        tipo = request.form.get("tipo", "Pago")
+        monto_texto = request.form.get("monto", "0").strip()
+        descripcion = request.form.get("descripcion", "").strip()
+        destinatario = request.form.get("destinatario", "").strip()
+
+        if tipo not in ("Ingreso", "Pago", "Transferencia"):
+            error = "Tipo de movimiento no valido."
+        elif not monto_texto.isdigit() or int(monto_texto) <= 0:
+            error = "Ingresa un monto valido."
+        elif not descripcion:
+            error = "La descripcion es obligatoria."
+        else:
+            monto = int(monto_texto)
+            saldo_actual = cuenta["saldo"]
+            es_salida = tipo in ("Pago", "Transferencia")
+
+            if es_salida and monto > saldo_actual:
+                error = "Saldo insuficiente para realizar esta transaccion."
+            else:
+                saldo_final = saldo_actual - monto if es_salida else saldo_actual + monto
+                codigo = f"MOV-{datetime.now().strftime('%Y%m%d%H%M%S')}-{usuario['id']}-{secrets.token_hex(3).upper()}"
+                cursor = db.execute(
+                    """
+                    INSERT INTO movimientos
+                    (cuenta_id, usuario_id, tipo, monto, descripcion, destinatario, codigo, saldo_final, fecha)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        cuenta["id"],
+                        usuario["id"],
+                        tipo,
+                        monto,
+                        descripcion,
+                        destinatario or None,
+                        codigo,
+                        saldo_final,
+                        ahora(),
+                    ),
+                )
+                db.execute("UPDATE cuentas SET saldo = ? WHERE id = ?", (saldo_final, cuenta["id"]))
+                db.commit()
+                registrar_historial(usuario["id"], f"Realizo movimiento de billetera: {tipo}")
+                crear_notificacion(
+                    usuario["id"],
+                    "Movimiento registrado",
+                    f"Se genero un recibo por {tipo.lower()} de ${monto:,}.",
+                )
+                return redirect(url_for("recibo_movimiento", movimiento_id=cursor.lastrowid))
+
+    cuenta = asegurar_cuenta(usuario["id"])
+    movimientos = db.execute(
+        """
+        SELECT * FROM movimientos
+        WHERE usuario_id = ?
+        ORDER BY fecha DESC, id DESC
+        LIMIT 12
+        """,
+        (usuario["id"],),
+    ).fetchall()
+    return render_template("billetera.html", cuenta=cuenta, movimientos=movimientos, error=error)
+
+
+@app.route("/movimiento/<int:movimiento_id>")
+@login_requerido
+def recibo_movimiento(movimiento_id):
+    usuario = usuario_actual()
+    movimiento = get_db().execute(
+        """
+        SELECT movimientos.*, usuarios.nombre AS usuario, usuarios.correo
+        FROM movimientos
+        JOIN usuarios ON usuarios.id = movimientos.usuario_id
+        WHERE movimientos.id = ?
+        """,
+        (movimiento_id,),
+    ).fetchone()
+    if not movimiento or (movimiento["usuario_id"] != usuario["id"] and usuario["rol"] != "admin"):
+        return redirect(url_for("dashboard"))
+    return render_template("recibo_movimiento.html", movimiento=movimiento)
+
+
 @app.route("/historial")
 @login_requerido
 def historial():
@@ -590,6 +791,8 @@ def validar():
         descuento_id = request.form.get("descuento_id") or None
         if not usuario:
             error = "No se encontro una membresia activa con ese codigo."
+        elif not membresia_activa(usuario):
+            error = f"La membresia existe, pero esta {usuario['estado'].lower()}."
         else:
             db.execute(
                 """
@@ -641,13 +844,22 @@ def admin():
         descripcion = request.form.get("descripcion", "").strip()
         categoria = request.form.get("categoria", "").strip()
         porcentaje = request.form.get("porcentaje", "0").strip()
+        ahorro_estimado = request.form.get("ahorro_estimado", "10000").strip()
+        nivel_minimo = request.form.get("nivel_minimo", "Vital").strip()
         if nombre and descripcion and categoria and porcentaje.isdigit():
             db.execute(
                 """
-                INSERT INTO descuentos (nombre, descripcion, categoria, porcentaje)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO descuentos (nombre, descripcion, categoria, porcentaje, ahorro_estimado, nivel_minimo)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (nombre, descripcion, categoria, int(porcentaje)),
+                (
+                    nombre,
+                    descripcion,
+                    categoria,
+                    int(porcentaje),
+                    int(ahorro_estimado) if ahorro_estimado.isdigit() else 10000,
+                    nivel_minimo if nivel_minimo in NIVELES else "Vital",
+                ),
             )
             db.commit()
             registrar_historial(session["usuario_id"], f"Admin agrego descuento {nombre}")
@@ -679,7 +891,32 @@ def admin():
         comercios=comercios,
         actividad=actividad,
         stats=stats,
+        niveles=list(NIVELES.keys()),
+        estados=ESTADOS_MEMBRESIA,
     )
+
+
+@app.route("/admin/usuario/<int:usuario_id>/membresia", methods=["POST"])
+@login_requerido
+@admin_requerido
+def actualizar_membresia(usuario_id):
+    nivel = request.form.get("nivel", "Vital")
+    estado = request.form.get("estado", "Activa")
+    if nivel not in NIVELES:
+        nivel = "Vital"
+    if estado not in ESTADOS_MEMBRESIA:
+        estado = "Activa"
+
+    db = get_db()
+    db.execute("UPDATE usuarios SET nivel = ?, estado = ? WHERE id = ?", (nivel, estado, usuario_id))
+    db.commit()
+    registrar_historial(session["usuario_id"], f"Admin actualizo membresia de usuario {usuario_id}")
+    crear_notificacion(
+        usuario_id,
+        "Membresia actualizada",
+        f"Tu membresia ahora esta en nivel {nivel} con estado {estado}.",
+    )
+    return redirect(url_for("admin"))
 
 
 @app.route("/admin/comercios", methods=["POST"])
@@ -807,6 +1044,11 @@ def eliminar_usuario(usuario_id):
         db = get_db()
         db.execute("DELETE FROM historial WHERE usuario_id = ?", (usuario_id,))
         db.execute("DELETE FROM validaciones WHERE usuario_id = ?", (usuario_id,))
+        db.execute("DELETE FROM movimientos WHERE usuario_id = ?", (usuario_id,))
+        db.execute("DELETE FROM cuentas WHERE usuario_id = ?", (usuario_id,))
+        db.execute("DELETE FROM favoritos WHERE usuario_id = ?", (usuario_id,))
+        db.execute("DELETE FROM comprobantes WHERE usuario_id = ?", (usuario_id,))
+        db.execute("DELETE FROM notificaciones WHERE usuario_id = ?", (usuario_id,))
         db.execute("DELETE FROM usuarios WHERE id = ?", (usuario_id,))
         db.commit()
     return redirect(url_for("admin"))
@@ -837,13 +1079,58 @@ def eliminar_comercio(comercio_id):
 @app.route("/recuperar", methods=["GET", "POST"])
 def recuperar():
     mensaje = None
+    enlace = None
     if request.method == "POST":
         correo = request.form.get("correo", "").strip().lower()
-        usuario = get_db().execute("SELECT id FROM usuarios WHERE correo = ?", (correo,)).fetchone()
+        db = get_db()
+        usuario = db.execute("SELECT id FROM usuarios WHERE correo = ?", (correo,)).fetchone()
         if usuario:
+            token = secrets.token_urlsafe(32)
+            expira = datetime.now().timestamp() + 3600
+            db.execute(
+                "UPDATE usuarios SET reset_token = ?, reset_expira = ? WHERE id = ?",
+                (token, str(expira), usuario["id"]),
+            )
+            db.commit()
             registrar_historial(usuario["id"], "Solicito recuperacion de contrasena")
-        mensaje = "Si el correo existe, se enviarian instrucciones de recuperacion."
-    return render_template("recuperar.html", mensaje=mensaje)
+            enlace = url_for("restablecer", token=token, _external=True)
+        mensaje = "Si el correo existe, se genero un enlace de recuperacion."
+    return render_template("recuperar.html", mensaje=mensaje, enlace=enlace)
+
+
+@app.route("/restablecer/<token>", methods=["GET", "POST"])
+def restablecer(token):
+    db = get_db()
+    usuario = db.execute("SELECT * FROM usuarios WHERE reset_token = ?", (token,)).fetchone()
+    error = None
+    mensaje = None
+
+    if not usuario:
+        error = "El enlace de recuperacion no es valido."
+    elif float(usuario["reset_expira"] or 0) < datetime.now().timestamp():
+        error = "El enlace de recuperacion ya vencio."
+
+    if request.method == "POST" and not error:
+        contrasena = request.form.get("password", "").strip()
+        confirmar = request.form.get("confirmar", "").strip()
+        if len(contrasena) < 6:
+            error = "La contrasena debe tener al menos 6 caracteres."
+        elif contrasena != confirmar:
+            error = "Las contrasenas no coinciden."
+        else:
+            db.execute(
+                """
+                UPDATE usuarios
+                SET contrasena = ?, reset_token = NULL, reset_expira = NULL
+                WHERE id = ?
+                """,
+                (generate_password_hash(contrasena), usuario["id"]),
+            )
+            db.commit()
+            registrar_historial(usuario["id"], "Restablecio su contrasena")
+            mensaje = "Contrasena actualizada. Ya puedes iniciar sesion."
+
+    return render_template("restablecer.html", error=error, mensaje=mensaje)
 
 
 @app.route("/logout")

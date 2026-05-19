@@ -25,6 +25,12 @@
                 <input class="form-control" name="nombre" placeholder="Nombre" required>
                 <input class="form-control" name="categoria" placeholder="Categoria" required>
                 <input class="form-control" name="porcentaje" type="number" min="1" max="100" placeholder="Porcentaje" required>
+                <input class="form-control" name="ahorro_estimado" type="number" min="0" placeholder="Ahorro estimado">
+                <select class="form-select" name="nivel_minimo">
+                    {% for nivel in niveles %}
+                        <option value="{{ nivel }}">Nivel minimo: {{ nivel }}</option>
+                    {% endfor %}
+                </select>
                 <textarea class="form-control" name="descripcion" placeholder="Descripcion" required></textarea>
                 <button class="btn btn-success" type="submit">Agregar</button>
             </form>
@@ -53,6 +59,19 @@
                     <div>
                         <strong>{{ item.nombre }}</strong>
                         <p>{{ item.correo }} - {{ item.rol }}</p>
+                        <form method="post" action="{{ url_for('actualizar_membresia', usuario_id=item.id) }}" class="inline-admin-form">
+                            <select class="form-select form-select-sm" name="nivel">
+                                {% for nivel in niveles %}
+                                    <option value="{{ nivel }}" {% if item.nivel == nivel %}selected{% endif %}>{{ nivel }}</option>
+                                {% endfor %}
+                            </select>
+                            <select class="form-select form-select-sm" name="estado">
+                                {% for estado in estados %}
+                                    <option value="{{ estado }}" {% if item.estado == estado %}selected{% endif %}>{{ estado }}</option>
+                                {% endfor %}
+                            </select>
+                            <button class="btn btn-sm btn-outline-success" type="submit">Guardar</button>
+                        </form>
                     </div>
                     {% if item.id != usuario_sesion.id %}
                         <form method="post" action="{{ url_for('eliminar_usuario', usuario_id=item.id) }}">
@@ -69,7 +88,7 @@
                 <div class="admin-row">
                     <div>
                         <strong>{{ item.nombre }} - {{ item.porcentaje }}%</strong>
-                        <p>{{ item.categoria }} - {{ item.usos }} usos</p>
+                        <p>{{ item.categoria }} - {{ item.usos }} usos - Nivel {{ item.nivel_minimo }}</p>
                     </div>
                     <form method="post" action="{{ url_for('eliminar_descuento', descuento_id=item.id) }}">
                         <button class="btn btn-sm btn-outline-danger" type="submit">Eliminar</button>

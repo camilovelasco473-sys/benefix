@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Restablecer contrasena | Benefix{% endblock %}
+
+{% block content %}
+<main class="auth-shell">
+    <section class="auth-card">
+        <div class="text-center mb-4">
+            <img class="auth-logo" src="{{ url_for('static', filename='img/benefix-logo.svg') }}" alt="Benefix">
+            <h1>Nueva contrasena</h1>
+            <p>Crea una contrasena nueva para recuperar tu acceso.</p>
+        </div>
+        {% if mensaje %}
+            <div class="alert alert-success">{{ mensaje }}</div>
+            <div class="auth-links">
+                <a href="{{ url_for('login') }}">Ir al login</a>
+            </div>
+        {% else %}
+            {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+            {% if not error or 'contrasena' in error or 'coinciden' in error %}
+                <form method="post" class="vstack gap-3">
+                    <label class="form-label">Nueva contrasena
+                        <input class="form-control" type="password" name="password" required>
+                    </label>
+                    <label class="form-label">Confirmar contrasena
+                        <input class="form-control" type="password" name="confirmar" required>
+                    </label>
+                    <button class="btn btn-success btn-lg" type="submit">Actualizar contrasena</button>
+                </form>
+            {% endif %}
+        {% endif %}
+    </section>
+</main>
+{% endblock %}

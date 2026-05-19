@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Billetera | Benefix{% endblock %}
+
+{% block content %}
+<main class="app-shell">
+    <section class="hero-row">
+        <div>
+            <p class="eyebrow">Cuenta digital</p>
+            <h1>Billetera Benefix</h1>
+            <p class="text-muted">Consulta tu saldo y registra movimientos con recibo.</p>
+        </div>
+    </section>
+
+    <section class="dashboard-grid">
+        <article class="wallet-card">
+            <div class="card-top">
+                <span>Saldo disponible</span>
+                <i class="fa-solid fa-wallet"></i>
+            </div>
+            <h2>${{ "{:,}".format(cuenta.saldo) }}</h2>
+            <p>{{ cuenta.moneda }} - Cuenta BF-{{ "%04d"|format(cuenta.usuario_id) }}</p>
+        </article>
+
+        <article class="panel-card">
+            <h2>Nueva transaccion</h2>
+            {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+            <form method="post" class="vstack gap-3">
+                <select class="form-select" name="tipo">
+                    <option>Pago</option>
+                    <option>Transferencia</option>
+                    <option>Ingreso</option>
+                </select>
+                <input class="form-control" type="number" name="monto" min="1" placeholder="Monto" required>
+                <input class="form-control" name="destinatario" placeholder="Destinatario o comercio">
+                <textarea class="form-control" name="descripcion" placeholder="Descripcion del movimiento" required></textarea>
+                <button class="btn btn-success" type="submit">Realizar movimiento</button>
+            </form>
+        </article>
+    </section>
+
+    <section class="panel-card">
+        <div class="section-title">
+            <h2>Movimientos recientes</h2>
+        </div>
+        {% for item in movimientos %}
+            <div class="admin-row">
+                <div>
+                    <strong>{{ item.tipo }} - ${{ "{:,}".format(item.monto) }}</strong>
+                    <p>{{ item.descripcion }}{% if item.destinatario %} - {{ item.destinatario }}{% endif %}</p>
+                    <p>{{ item.codigo }} - {{ item.fecha }} - Saldo final: ${{ "{:,}".format(item.saldo_final) }}</p>
+                </div>
+                <a class="btn btn-sm btn-outline-success" href="{{ url_for('recibo_movimiento', movimiento_id=item.id) }}">Recibo</a>
+            </div>
+        {% else %}
+            <p class="text-muted m-0">Aun no hay movimientos.</p>
+        {% endfor %}
+    </section>
+</main>
+{% endblock %}

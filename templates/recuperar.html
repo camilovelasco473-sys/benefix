@@ -12,6 +12,12 @@
         {% if mensaje %}
             <div class="alert alert-success">{{ mensaje }}</div>
         {% endif %}
+        {% if enlace %}
+            <div class="reset-link-box">
+                <p>En una version real este enlace llegaria por correo. Para la demo puedes abrirlo aqui:</p>
+                <a href="{{ enlace }}">{{ enlace }}</a>
+            </div>
+        {% endif %}
         <form method="post" class="vstack gap-3">
             <label class="form-label">Correo
                 <input class="form-control" type="email" name="correo" required>

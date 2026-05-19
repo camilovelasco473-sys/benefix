@@ -6,8 +6,17 @@
     <section class="hero-row">
         <div>
             <p class="eyebrow">Panel principal</p>
-            <h1>Hola, {{ usuario.nombre }}</h1>
-            <p class="text-muted">Tu membresia esta activa y lista para usar en comercios aliados.</p>
+            <div class="profile-heading">
+                {% if usuario.foto %}
+                    <img src="{{ usuario.foto }}" alt="Foto de {{ usuario.nombre }}">
+                {% else %}
+                    <div class="profile-initials small">{{ usuario.nombre[:1] }}</div>
+                {% endif %}
+                <div>
+                    <h1>Hola, {{ usuario.nombre }}</h1>
+                    <p class="text-muted">Tu membresia esta {{ usuario.estado|lower }} y pertenece al nivel {{ usuario.nivel }}.</p>
+                </div>
+            </div>
         </div>
         <div class="quick-actions">
             <a class="btn btn-success" href="{{ url_for('descuentos') }}"><i class="fa-solid fa-tag"></i> Usar descuento</a>
@@ -37,6 +46,10 @@
                     <small>Miembro desde</small>
                     <strong>{{ usuario.creado_en[:10] }}</strong>
                 </div>
+                <div>
+                    <small>Estado</small>
+                    <strong>{{ usuario.estado }}</strong>
+                </div>
             </div>
         </article>
 
@@ -53,6 +66,7 @@
     <section class="stats-grid">
         <article class="stat-card"><i class="fa-solid fa-tags"></i><span>{{ stats.descuentos }}</span><p>Descuentos activos</p></article>
         <article class="stat-card"><i class="fa-solid fa-bolt"></i><span>{{ stats.usos }}</span><p>Usos registrados</p></article>
+        <article class="stat-card"><i class="fa-solid fa-wallet"></i><span>${{ "{:,}".format(stats.saldo) }}</span><p>Saldo disponible</p></article>
         <article class="stat-card"><i class="fa-solid fa-piggy-bank"></i><span>${{ "{:,}".format(stats.ahorro) }}</span><p>Ahorro estimado</p></article>
         <article class="stat-card"><i class="fa-solid fa-clock"></i><span>{{ stats.actividad }}</span><p>Eventos en tu historial</p></article>
     </section>

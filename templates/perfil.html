@@ -10,6 +10,18 @@
                 <h1>Perfil de usuario</h1>
             </div>
         </div>
+        <div class="profile-preview">
+            {% if usuario.foto %}
+                <img src="{{ usuario.foto }}" alt="Foto de {{ usuario.nombre }}">
+            {% else %}
+                <div class="profile-initials">{{ usuario.nombre[:1] }}</div>
+            {% endif %}
+            <div>
+                <strong>{{ usuario.nombre }}</strong>
+                <p>{{ usuario.correo }}</p>
+                <span class="status-pill">{{ usuario.nivel }} - {{ usuario.estado }}</span>
+            </div>
+        </div>
         {% if mensaje %}<div class="alert alert-success">{{ mensaje }}</div>{% endif %}
         {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
         <form method="post" class="vstack gap-3">
