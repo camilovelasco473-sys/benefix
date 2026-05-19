@@ -350,6 +350,13 @@ def extraer_usuario_por_codigo(codigo):
     return db.execute("SELECT * FROM usuarios WHERE correo = ?", (codigo.lower(),)).fetchone()
 
 
+def buscar_usuario_destinatario(valor):
+    valor = valor.strip()
+    if not valor:
+        return None
+    return extraer_usuario_por_codigo(valor)
+
+
 @app.context_processor
 def inyectar_usuario():
     usuario = usuario_actual()
@@ -651,12 +658,19 @@ def billetera():
             error = "Ingresa un monto valido."
         elif not descripcion:
             error = "La descripcion es obligatoria."
+        elif tipo == "Transferencia" and not destinatario:
+            error = "Para transferir debes escribir el correo o codigo Benefix del destinatario."
         else:
             monto = int(monto_texto)
             saldo_actual = cuenta["saldo"]
             es_salida = tipo in ("Pago", "Transferencia")
+            usuario_destino = buscar_usuario_destinatario(destinatario) if tipo == "Transferencia" else None
 
-            if es_salida and monto > saldo_actual:
+            if tipo == "Transferencia" and not usuario_destino:
+                error = "No encontramos un usuario Benefix con ese correo o codigo."
+            elif tipo == "Transferencia" and usuario_destino["id"] == usuario["id"]:
+                error = "No puedes transferirte a tu misma cuenta."
+            elif es_salida and monto > saldo_actual:
                 error = "Saldo insuficiente para realizar esta transaccion."
             else:
                 saldo_final = saldo_actual - monto if es_salida else saldo_actual + monto
@@ -673,13 +687,44 @@ def billetera():
                         tipo,
                         monto,
                         descripcion,
-                        destinatario or None,
+                        usuario_destino["correo"] if usuario_destino else destinatario or None,
                         codigo,
                         saldo_final,
                         ahora(),
                     ),
                 )
                 db.execute("UPDATE cuentas SET saldo = ? WHERE id = ?", (saldo_final, cuenta["id"]))
+
+                if tipo == "Transferencia":
+                    cuenta_destino = asegurar_cuenta(usuario_destino["id"])
+                    saldo_destino = cuenta_destino["saldo"] + monto
+                    codigo_destino = f"MOV-{datetime.now().strftime('%Y%m%d%H%M%S')}-{usuario_destino['id']}-{secrets.token_hex(3).upper()}"
+                    db.execute(
+                        """
+                        INSERT INTO movimientos
+                        (cuenta_id, usuario_id, tipo, monto, descripcion, destinatario, codigo, saldo_final, fecha)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            cuenta_destino["id"],
+                            usuario_destino["id"],
+                            "Ingreso",
+                            monto,
+                            f"Transferencia recibida de {usuario['nombre']}",
+                            usuario["correo"],
+                            codigo_destino,
+                            saldo_destino,
+                            ahora(),
+                        ),
+                    )
+                    db.execute("UPDATE cuentas SET saldo = ? WHERE id = ?", (saldo_destino, cuenta_destino["id"]))
+                    registrar_historial(usuario_destino["id"], f"Recibio transferencia de {usuario['nombre']}")
+                    crear_notificacion(
+                        usuario_destino["id"],
+                        "Transferencia recibida",
+                        f"Recibiste ${monto:,} de {usuario['nombre']}.",
+                    )
+
                 db.commit()
                 registrar_historial(usuario["id"], f"Realizo movimiento de billetera: {tipo}")
                 crear_notificacion(
