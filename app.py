@@ -11,6 +11,13 @@ import qrcode
 from flask import Flask, Response, g, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
+try:
+    import psycopg2
+    from psycopg2.extras import DictCursor
+except ImportError:
+    psycopg2 = None
+    DictCursor = None
+
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "benefix-dev-secret")
@@ -20,14 +27,77 @@ DEFAULT_DATABASE = (
     else "benefix.db"
 )
 DATABASE = os.environ.get("DATABASE_PATH", DEFAULT_DATABASE)
+DATABASE_URL = os.environ.get("DATABASE_URL")
+USING_POSTGRES = bool(DATABASE_URL)
 NIVELES = {"Vital": 1, "Gold": 2, "Black": 3}
 ESTADOS_MEMBRESIA = ("Activa", "Suspendida", "Vencida")
 
 
+class PostgresResult:
+    def __init__(self, cursor, lastrowid=None):
+        self.cursor = cursor
+        self.lastrowid = lastrowid
+
+    def fetchone(self):
+        return self.cursor.fetchone()
+
+    def fetchall(self):
+        return self.cursor.fetchall()
+
+
+class PostgresDB:
+    def __init__(self, url):
+        if psycopg2 is None:
+            raise RuntimeError("psycopg2-binary no esta instalado. Ejecuta pip install -r requirements.txt")
+        self.connection = psycopg2.connect(url, cursor_factory=DictCursor)
+
+    def _prepare(self, query):
+        query = query.strip()
+        conflict = False
+        if query.upper().startswith("INSERT OR IGNORE INTO"):
+            query = "INSERT INTO" + query[len("INSERT OR IGNORE INTO") :]
+            conflict = True
+
+        query = query.replace("?", "%s")
+        needs_returning = query.upper().startswith("INSERT INTO") and "RETURNING" not in query.upper()
+        if conflict:
+            query += " ON CONFLICT DO NOTHING"
+        if needs_returning:
+            query += " RETURNING id"
+        return query, needs_returning
+
+    def execute(self, query, params=()):
+        prepared, needs_returning = self._prepare(query)
+        cursor = self.connection.cursor()
+        cursor.execute(prepared, params)
+        lastrowid = None
+        if needs_returning:
+            row = cursor.fetchone()
+            if row:
+                lastrowid = row["id"]
+        return PostgresResult(cursor, lastrowid)
+
+    def executemany(self, query, rows):
+        prepared, _ = self._prepare(query)
+        prepared = prepared.replace(" RETURNING id", "")
+        cursor = self.connection.cursor()
+        cursor.executemany(prepared, rows)
+        return PostgresResult(cursor)
+
+    def commit(self):
+        self.connection.commit()
+
+    def close(self):
+        self.connection.close()
+
+
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DATABASE)
-        g.db.row_factory = sqlite3.Row
+        if USING_POSTGRES:
+            g.db = PostgresDB(DATABASE_URL)
+        else:
+            g.db = sqlite3.connect(DATABASE)
+            g.db.row_factory = sqlite3.Row
     return g.db
 
 
@@ -38,10 +108,127 @@ def cerrar_db(error=None):
         db.close()
 
 
+def crear_tablas_postgres(db):
+    statements = [
+        """
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            correo TEXT NOT NULL UNIQUE,
+            contrasena TEXT NOT NULL,
+            foto TEXT,
+            nivel TEXT NOT NULL DEFAULT 'Vital',
+            estado TEXT NOT NULL DEFAULT 'Activa',
+            rol TEXT NOT NULL DEFAULT 'usuario',
+            reset_token TEXT,
+            reset_expira TEXT,
+            creado_en TEXT NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS descuentos (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            descripcion TEXT NOT NULL,
+            categoria TEXT NOT NULL,
+            porcentaje INTEGER NOT NULL,
+            usos INTEGER NOT NULL DEFAULT 0,
+            ahorro_estimado INTEGER NOT NULL DEFAULT 10000,
+            nivel_minimo TEXT NOT NULL DEFAULT 'Vital'
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS historial (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+            accion TEXT NOT NULL,
+            fecha TEXT NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS comercios (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            categoria TEXT NOT NULL,
+            direccion TEXT NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'Activo'
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS validaciones (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+            comercio_id INTEGER REFERENCES comercios(id),
+            descuento_id INTEGER REFERENCES descuentos(id),
+            codigo TEXT NOT NULL,
+            resultado TEXT NOT NULL,
+            fecha TEXT NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS favoritos (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+            descuento_id INTEGER NOT NULL REFERENCES descuentos(id),
+            fecha TEXT NOT NULL,
+            UNIQUE(usuario_id, descuento_id)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS comprobantes (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+            descuento_id INTEGER NOT NULL REFERENCES descuentos(id),
+            codigo TEXT NOT NULL UNIQUE,
+            ahorro INTEGER NOT NULL,
+            fecha TEXT NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS notificaciones (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+            titulo TEXT NOT NULL,
+            mensaje TEXT NOT NULL,
+            leida INTEGER NOT NULL DEFAULT 0,
+            fecha TEXT NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS cuentas (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER NOT NULL UNIQUE REFERENCES usuarios(id),
+            saldo INTEGER NOT NULL DEFAULT 150000,
+            moneda TEXT NOT NULL DEFAULT 'COP',
+            creada_en TEXT NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS movimientos (
+            id SERIAL PRIMARY KEY,
+            cuenta_id INTEGER NOT NULL REFERENCES cuentas(id),
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+            tipo TEXT NOT NULL,
+            monto INTEGER NOT NULL,
+            descripcion TEXT NOT NULL,
+            destinatario TEXT,
+            codigo TEXT NOT NULL UNIQUE,
+            saldo_final INTEGER NOT NULL,
+            fecha TEXT NOT NULL
+        )
+        """,
+    ]
+    for statement in statements:
+        db.execute(statement)
+
+
 def init_db():
     db = get_db()
-    db.executescript(
-        """
+    if USING_POSTGRES:
+        crear_tablas_postgres(db)
+    else:
+        db.executescript(
+            """
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre TEXT NOT NULL,
@@ -151,7 +338,7 @@ def init_db():
             FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
         );
         """
-    )
+        )
     asegurar_columna("usuarios", "estado", "TEXT NOT NULL DEFAULT 'Activa'")
     asegurar_columna("usuarios", "reset_token", "TEXT")
     asegurar_columna("usuarios", "reset_expira", "TEXT")
@@ -163,7 +350,20 @@ def init_db():
 
 def asegurar_columna(tabla, columna, definicion):
     db = get_db()
-    columnas = [fila["name"] for fila in db.execute(f"PRAGMA table_info({tabla})").fetchall()]
+    if USING_POSTGRES:
+        columnas = [
+            fila["column_name"]
+            for fila in db.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = ?
+                """,
+                (tabla,),
+            ).fetchall()
+        ]
+    else:
+        columnas = [fila["name"] for fila in db.execute(f"PRAGMA table_info({tabla})").fetchall()]
     if columna not in columnas:
         db.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {definicion}")
 
