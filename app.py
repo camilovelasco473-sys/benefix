@@ -12,11 +12,11 @@ from flask import Flask, Response, g, redirect, render_template, request, sessio
 from werkzeug.security import check_password_hash, generate_password_hash
 
 try:
-    import psycopg2
-    from psycopg2.extras import DictCursor
+    import psycopg
+    from psycopg.rows import dict_row
 except ImportError:
-    psycopg2 = None
-    DictCursor = None
+    psycopg = None
+    dict_row = None
 
 
 app = Flask(__name__)
@@ -47,9 +47,9 @@ class PostgresResult:
 
 class PostgresDB:
     def __init__(self, url):
-        if psycopg2 is None:
-            raise RuntimeError("psycopg2-binary no esta instalado. Ejecuta pip install -r requirements.txt")
-        self.connection = psycopg2.connect(url, cursor_factory=DictCursor)
+        if psycopg is None:
+            raise RuntimeError("psycopg no esta instalado. Ejecuta pip install -r requirements.txt")
+        self.connection = psycopg.connect(url, row_factory=dict_row)
 
     def _prepare(self, query):
         query = query.strip()
