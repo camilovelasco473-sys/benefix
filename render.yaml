@@ -9,3 +9,9 @@ services:
         generateValue: true
       - key: FLASK_DEBUG
         value: "0"
+      - key: DATABASE_PATH
+        value: /var/data/benefix.db
+    disk:
+      name: benefix-data
+      mountPath: /var/data
+      sizeGB: 1

@@ -76,9 +76,9 @@ Start Command: gunicorn app:app
 ```text
 SECRET_KEY: una clave larga y secreta
 FLASK_DEBUG: 0
-DATABASE_PATH: benefix.db
+DATABASE_PATH: /var/data/benefix.db
 ```
 
 Render generara una URL publica para abrir la aplicacion.
 
-Nota: SQLite funciona para demostracion academica, pero en una version profesional conviene cambiar a PostgreSQL para conservar datos de forma mas segura en la nube.
+Nota: SQLite funciona para demostracion academica. Para que los datos no se borren en Render, agrega un Persistent Disk con mount path `/var/data`. En una version profesional conviene cambiar a PostgreSQL.
