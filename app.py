@@ -101,6 +101,15 @@ def get_db():
     return g.db
 
 
+def valor_escalar(resultado, defecto=0):
+    fila = resultado.fetchone()
+    if fila is None:
+        return defecto
+    if isinstance(fila, dict):
+        return next(iter(fila.values()), defecto)
+    return fila[0]
+
+
 @app.teardown_appcontext
 def cerrar_db(error=None):
     db = g.pop("db", None)
@@ -370,7 +379,7 @@ def asegurar_columna(tabla, columna, definicion):
 
 def seed_data():
     db = get_db()
-    total_usuarios = db.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0]
+    total_usuarios = valor_escalar(db.execute("SELECT COUNT(*) FROM usuarios"))
     if total_usuarios == 0:
         cursor = db.execute(
             """
@@ -389,7 +398,7 @@ def seed_data():
         db.commit()
         asegurar_cuenta(cursor.lastrowid)
 
-    total_descuentos = db.execute("SELECT COUNT(*) FROM descuentos").fetchone()[0]
+    total_descuentos = valor_escalar(db.execute("SELECT COUNT(*) FROM descuentos"))
     if total_descuentos == 0:
         db.executemany(
             """
@@ -404,7 +413,7 @@ def seed_data():
             ],
         )
 
-    total_comercios = db.execute("SELECT COUNT(*) FROM comercios").fetchone()[0]
+    total_comercios = valor_escalar(db.execute("SELECT COUNT(*) FROM comercios"))
     if total_comercios == 0:
         db.executemany(
             """
@@ -562,10 +571,12 @@ def inyectar_usuario():
     usuario = usuario_actual()
     pendientes = 0
     if usuario:
-        pendientes = get_db().execute(
-            "SELECT COUNT(*) FROM notificaciones WHERE usuario_id = ? AND leida = 0",
-            (usuario["id"],),
-        ).fetchone()[0]
+        pendientes = valor_escalar(
+            get_db().execute(
+                "SELECT COUNT(*) FROM notificaciones WHERE usuario_id = ? AND leida = 0",
+                (usuario["id"],),
+            )
+        )
     return {"usuario_sesion": usuario, "notificaciones_pendientes": pendientes}
 
 
@@ -646,15 +657,17 @@ def dashboard():
         (usuario["id"],),
     ).fetchall()
     stats = {
-        "descuentos": db.execute("SELECT COUNT(*) FROM descuentos").fetchone()[0],
-        "usos": db.execute("SELECT COALESCE(SUM(usos), 0) FROM descuentos").fetchone()[0],
-        "actividad": db.execute(
-            "SELECT COUNT(*) FROM historial WHERE usuario_id = ?", (usuario["id"],)
-        ).fetchone()[0],
-        "ahorro": db.execute(
-            "SELECT COALESCE(SUM(ahorro), 0) FROM comprobantes WHERE usuario_id = ?",
-            (usuario["id"],),
-        ).fetchone()[0],
+        "descuentos": valor_escalar(db.execute("SELECT COUNT(*) FROM descuentos")),
+        "usos": valor_escalar(db.execute("SELECT COALESCE(SUM(usos), 0) FROM descuentos")),
+        "actividad": valor_escalar(
+            db.execute("SELECT COUNT(*) FROM historial WHERE usuario_id = ?", (usuario["id"],))
+        ),
+        "ahorro": valor_escalar(
+            db.execute(
+                "SELECT COALESCE(SUM(ahorro), 0) FROM comprobantes WHERE usuario_id = ?",
+                (usuario["id"],),
+            )
+        ),
         "saldo": asegurar_cuenta(usuario["id"])["saldo"],
     }
     codigo = codigo_usuario(usuario["id"])
@@ -800,17 +813,19 @@ def mi_benefix():
         (usuario["id"],),
     ).fetchall()
     stats = {
-        "ahorro": db.execute(
-            "SELECT COALESCE(SUM(ahorro), 0) FROM comprobantes WHERE usuario_id = ?",
-            (usuario["id"],),
-        ).fetchone()[0],
-        "usados": db.execute(
-            "SELECT COUNT(*) FROM comprobantes WHERE usuario_id = ?", (usuario["id"],)
-        ).fetchone()[0],
+        "ahorro": valor_escalar(
+            db.execute(
+                "SELECT COALESCE(SUM(ahorro), 0) FROM comprobantes WHERE usuario_id = ?",
+                (usuario["id"],),
+            )
+        ),
+        "usados": valor_escalar(
+            db.execute("SELECT COUNT(*) FROM comprobantes WHERE usuario_id = ?", (usuario["id"],))
+        ),
         "favoritos": len(favoritos),
-        "actividad": db.execute(
-            "SELECT COUNT(*) FROM historial WHERE usuario_id = ?", (usuario["id"],)
-        ).fetchone()[0],
+        "actividad": valor_escalar(
+            db.execute("SELECT COUNT(*) FROM historial WHERE usuario_id = ?", (usuario["id"],))
+        ),
     }
     codigo = codigo_usuario(usuario["id"])
     qr = generar_qr(f"BENEFIX|usuario:{usuario['id']}|codigo:{codigo}|correo:{usuario['correo']}")
@@ -1123,11 +1138,11 @@ def admin():
         """
     ).fetchall()
     stats = {
-        "usuarios": db.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0],
-        "descuentos": db.execute("SELECT COUNT(*) FROM descuentos").fetchone()[0],
-        "usos": db.execute("SELECT COALESCE(SUM(usos), 0) FROM descuentos").fetchone()[0],
-        "comercios": db.execute("SELECT COUNT(*) FROM comercios").fetchone()[0],
-        "validaciones": db.execute("SELECT COUNT(*) FROM validaciones").fetchone()[0],
+        "usuarios": valor_escalar(db.execute("SELECT COUNT(*) FROM usuarios")),
+        "descuentos": valor_escalar(db.execute("SELECT COUNT(*) FROM descuentos")),
+        "usos": valor_escalar(db.execute("SELECT COALESCE(SUM(usos), 0) FROM descuentos")),
+        "comercios": valor_escalar(db.execute("SELECT COUNT(*) FROM comercios")),
+        "validaciones": valor_escalar(db.execute("SELECT COUNT(*) FROM validaciones")),
     }
     return render_template(
         "admin.html",
@@ -1226,10 +1241,10 @@ def reportes():
         """
     ).fetchall()
     stats = {
-        "usuarios": db.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0],
-        "descuentos": db.execute("SELECT COUNT(*) FROM descuentos").fetchone()[0],
-        "comercios": db.execute("SELECT COUNT(*) FROM comercios").fetchone()[0],
-        "validaciones": db.execute("SELECT COUNT(*) FROM validaciones").fetchone()[0],
+        "usuarios": valor_escalar(db.execute("SELECT COUNT(*) FROM usuarios")),
+        "descuentos": valor_escalar(db.execute("SELECT COUNT(*) FROM descuentos")),
+        "comercios": valor_escalar(db.execute("SELECT COUNT(*) FROM comercios")),
+        "validaciones": valor_escalar(db.execute("SELECT COUNT(*) FROM validaciones")),
     }
     return render_template(
         "reportes.html",
